@@ -1,27 +1,33 @@
-"""v17n-5 exp8. FAMILY corn-soy-open-hour-relative-value (spread measured 08:30-09:29 CT; docstring corrected).
-Mechanism: corn and soy compete for acreage/feed demand; their correlated overnight returns can
-separate on thin liquidity and converge once US commercial flow begins. At 09:30 CT long overnight
-underperformer and short outperformer when normalized return spread exceeds 1 trailing standard
-deviation; exit 12:50. Hypothesis: spread convergence covers stressed paired costs.
-Falsifier: negative era PnL or fewer than 70% positive years.
+"""v17n-5 exp8. FAMILY corn-soy-open-hour-relative-value.
+Mechanism: corn/soy are acreage and feed substitutes; thin 08:30-09:29 CT liquidity can exaggerate
+their separation and US commercial flow converges it. Long 09:30 underperformer, short outperformer
+when normalized return spread >=1 trailing 20-day SD; flat 12:50. Falsifier: negative era or
+<70% positive years.
 """
 import numpy as np
 FAMILY='corn-soy-open-hour-relative-value'
-PARAMS={'signal_sec':34140,'exit_sec':46500,'lookback':20,'z_threshold':1.,'stop_usd':250.}
+PARAMS={'signal_sec':34140,'exit_sec':46500,'lookback':20,'z_threshold':1.}
 def entry_risk(panel): return {s:np.full(len(d),290.) for s,d in panel.items()}
 def signals(panel):
  r={s:np.zeros(len(d),dtype=np.int64) for s,d in panel.items()}
  if not {'ZC','ZS'}<=set(panel):return r
- a,b=panel['ZC'],panel['ZS']; ia={str(x):np.flatnonzero(a.session.astype(str).to_numpy()==x) for x in a.session.unique()}; ib={str(x):np.flatnonzero(b.session.astype(str).to_numpy()==x) for x in b.session.unique()}
- hist=[]
+ a,b=panel['ZC'],panel['ZS']
+ # session -> first row index, prefix-complete
+ ia={str(x):int(np.searchsorted(a.session.astype(str),x)) for x in a.session.unique()}
+ ib={str(x):int(np.searchsorted(b.session.astype(str),x)) for x in b.session.unique()}
+ ca=a.close.to_numpy(float); cb=b.close.to_numpy(float); sa=a.ct_sec.to_numpy(); sb=b.ct_sec.to_numpy(); hist=[]
  for day in sorted(set(ia)&set(ib)):
-  xa,xb=ia[day],ib[day]; sa=a.ct_sec.to_numpy()[xa];sb=b.ct_sec.to_numpy()[xb];ca=a.close.to_numpy(float);cb=b.close.to_numpy(float)
-  wa=xa[(sa>=30600)&(sa<=PARAMS['signal_sec'])];wb=xb[(sb>=30600)&(sb<=PARAMS['signal_sec'])]
-  if len(wa)>=2 and len(wb)>=2:
-   spread=(ca[wa[-1]]/ca[wa[0]]-1)-(cb[wb[-1]]/cb[wb[0]]-1)
+  xa,xb=ia[day],ib[day]
+  n1=np.searchsorted(sa,30600,'left',sorter=None) if False else None
+  da=xa+np.searchsorted(sa[xa:xa+200],30600); db=xb+np.searchsorted(sb[xb:xb+200],30600)
+  ea=xa+np.searchsorted(sa[xa:xa+200],PARAMS['signal_sec'],'right');eb=xb+np.searchsorted(sb[xb:xb+200],PARAMS['signal_sec'],'right')
+  if ea-da>=2 and eb-db>=2:
+   spread=(ca[ea-1]/ca[da]-1)-(cb[eb-1]/cb[db]-1)
    if len(hist)>=PARAMS['lookback']:
     sd=np.std(hist[-PARAMS['lookback']:])
     if sd and abs(spread)>=PARAMS['z_threshold']*sd:
-     side=-int(np.sign(spread)); r['ZC'][xa[(sa>PARAMS['signal_sec'])&(sa<PARAMS['exit_sec']-60)]]=side; r['ZS'][xb[(sb>PARAMS['signal_sec'])&(sb<PARAMS['exit_sec']-60)]]=-side
+     side=-int(np.sign(spread))
+     ta=xa+np.searchsorted(sa[xa:xa+500],PARAMS['exit_sec']-60);tb=xb+np.searchsorted(sb[xb:xb+500],PARAMS['exit_sec']-60)
+     r['ZC'][ea:ta]=side;r['ZS'][eb:tb]=-side
    hist.append(spread)
  return r
