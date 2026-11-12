@@ -13,21 +13,19 @@ def signals(panel):
  if not {'ZC','ZS'}<=set(panel):return r
  a,b=panel['ZC'],panel['ZS']
  # session -> first row index, prefix-complete
- ia={str(x):int(np.searchsorted(a.session.astype(str).to_numpy(),str(x))) for x in a.session.unique()}
- ib={str(x):int(np.searchsorted(b.session.astype(str).to_numpy(),str(x))) for x in b.session.unique()}
+ ia={str(day):ix for day, ix in a.groupby('session', sort=False).indices.items()}
+ ib={str(day):ix for day, ix in b.groupby('session', sort=False).indices.items()}
  ca=a.close.to_numpy(float); cb=b.close.to_numpy(float); sa=a.ct_sec.to_numpy(); sb=b.ct_sec.to_numpy(); hist=[]
  for day in sorted(set(ia)&set(ib)):
   xa,xb=ia[day],ib[day]
-  n1=np.searchsorted(sa,30600,'left',sorter=None) if False else None
-  da=xa+np.searchsorted(sa[xa:xa+200],30600); db=xb+np.searchsorted(sb[xb:xb+200],30600)
-  ea=xa+np.searchsorted(sa[xa:xa+200],PARAMS['signal_sec'],'right');eb=xb+np.searchsorted(sb[xb:xb+200],PARAMS['signal_sec'],'right')
-  if ea-da>=2 and eb-db>=2:
-   spread=(ca[ea-1]/ca[da]-1)-(cb[eb-1]/cb[db]-1)
+  wa=xa[(sa[xa]>=30600)&(sa[xa]<=PARAMS['signal_sec'])];wb=xb[(sb[xb]>=30600)&(sb[xb]<=PARAMS['signal_sec'])]
+  if len(wa)>=2 and len(wb)>=2:
+   spread=(ca[wa[-1]]/ca[wa[0]]-1)-(cb[wb[-1]]/cb[wb[0]]-1)
    if len(hist)>=PARAMS['lookback']:
     sd=np.std(hist[-PARAMS['lookback']:])
     if sd and abs(spread)>=PARAMS['z_threshold']*sd:
      side=-int(np.sign(spread))
-     ta=xa+np.searchsorted(sa[xa:xa+500],PARAMS['exit_sec']-60);tb=xb+np.searchsorted(sb[xb:xb+500],PARAMS['exit_sec']-60)
-     r['ZC'][ea:ta]=side;r['ZS'][eb:tb]=-side
+     ha=xa[(xa>wa[-1])&(sa[xa]<PARAMS['exit_sec']-60)];hb=xb[(xb>wb[-1])&(sb[xb]<PARAMS['exit_sec']-60)]
+     r['ZC'][ha]=side;r['ZS'][hb]=-side
    hist.append(spread)
  return r
