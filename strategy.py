@@ -13,8 +13,8 @@ def signals(panel):
  if not {'ZC','ZS'}<=set(panel):return r
  a,b=panel['ZC'],panel['ZS']
  # session -> first row index, prefix-complete
- ia={str(x):int(np.searchsorted(a.session.astype(str),x)) for x in a.session.unique()}
- ib={str(x):int(np.searchsorted(b.session.astype(str),x)) for x in b.session.unique()}
+ ia={str(x):int(np.searchsorted(a.session.astype(str).to_numpy(),x)) for x in a.session.unique()}
+ ib={str(x):int(np.searchsorted(b.session.astype(str).to_numpy(),x)) for x in b.session.unique()}
  ca=a.close.to_numpy(float); cb=b.close.to_numpy(float); sa=a.ct_sec.to_numpy(); sb=b.ct_sec.to_numpy(); hist=[]
  for day in sorted(set(ia)&set(ib)):
   xa,xb=ia[day],ib[day]
