@@ -1,32 +1,35 @@
-"""v17n-5 exp5. FAMILY grain-report-shock-drift.
-Mechanism: USDA scheduled releases (WASDE/stocks ~11:00 CT) are information shocks; grains underreact
-and drift in shock direction because inventory holders reprice slowly. Detect shock causally from
-11:00-11:04 volume > VOL_MULT x trailing-20-session median of same window (no calendar needed).
-Enter at 11:05 close direction of 11:00 open->11:04 close move, exit 13:00, stop $250.
-Falsifier: negative stressed era or <70% positive years on ZC/ZS/ZW.
+"""v17n-5 exp6. FAMILY livestock-late-pressure-reversion.
+Mechanism: livestock liquidity thins into the close; hedger imbalance moves price temporarily and
+should revert next cash morning. Fade PREVIOUS session's 12:00-12:29 CT move (same contract) at
+next-session 10:00 CT; exit 12:50. Hypothesis: reversal survives stressed costs in HE/LE.
+Falsifier: negative stressed era or <70% positive years.
 """
 import numpy as np
-FAMILY = 'grain-report-shock-drift'
-PARAMS = {'vol_mult': 3., 'lookback': 20, 'exit_sec': 46800, 'stop_usd': 250.}
-START, SIG = 39600, 39840   # 11:00 .. 11:04 bar-start inclusive; signal bar 11:04
+FAMILY = 'livestock-late-pressure-reversion'
+PARAMS = {'entry_sec': 36000, 'exit_sec': 46500, 'min_move_usd': 150., 'stop_usd': 250.}
 def entry_risk(panel): return {s: np.full(len(d), 290.) for s, d in panel.items()}
 def signals(panel):
     res = {}
-    for s, df in panel.items():
-        out = np.zeros(len(df), dtype=np.int64)
-        if s not in ('ZC', 'ZS', 'ZW'): res[s] = out; continue
-        sec = df.ct_sec.to_numpy(); o = df.open.to_numpy(float); c = df.close.to_numpy(float); v = df.volume.to_numpy(float)
-        hist = []; stopd = PARAMS['stop_usd'] / 50.
-        for idx in df.groupby('session', sort=False).indices.values():
-            w = idx[(sec[idx] >= START) & (sec[idx] <= SIG)]
-            if len(w) == 5 and sec[w[-1]] == SIG:
-                vol = v[w].sum()
-                if len(hist) >= PARAMS['lookback'] and vol > PARAMS['vol_mult'] * np.median(hist[-PARAMS['lookback']:]) and c[w[-1]] != o[w[0]]:
-                    pos = int(np.sign(c[w[-1]] - o[w[0]])); stop = c[w[-1]] - pos * stopd
-                    for k in idx[idx > w[-1]]:
-                        if sec[k] >= PARAMS['exit_sec'] - 60 or pos * (c[k] - stop) <= 0: break
-                        out[k] = pos
-                hist.append(vol)
-            elif len(w): hist.append(v[w].sum())
+    for s, d in panel.items():
+        out = np.zeros(len(d), dtype=np.int64)
+        if s not in ('HE', 'LE'): res[s] = out; continue
+        sec = d.ct_sec.to_numpy(); c = d.close.to_numpy(float); ss = d.session.astype(str).to_numpy()
+        ctr = d.contract.to_numpy(); prev_move, prev_ctr = 0., None; i = 0
+        while i < len(d):
+            j = i
+            while j < len(d) and ss[j] == ss[i]: j += 1
+            pos = 0
+            if prev_ctr == ctr[i] and abs(prev_move) * 400 >= PARAMS['min_move_usd']:
+                pos = -int(np.sign(prev_move)); stop = None
+            for k in range(i, j):
+                if pos and stop is None and sec[k] >= PARAMS['entry_sec']: stop = c[k] - pos * (PARAMS['stop_usd'] / 400.)
+                if sec[k] < PARAMS['entry_sec'] or sec[k] >= PARAMS['exit_sec'] - 60 and sec[k] < 61200: 
+                    if pos and sec[k] >= PARAMS['exit_sec'] - 60: pos = 0
+                    continue
+                if pos and pos * (c[k] - stop) <= 0: pos = 0
+                out[k] = pos
+            w = np.flatnonzero((sec[i:j] >= 43200) & (sec[i:j] < 45000)) + i
+            prev_move = c[w[-1]] - c[w[0]] if len(w) >= 2 else 0.
+            prev_ctr = ctr[j - 1]; i = j
         res[s] = out
     return res
