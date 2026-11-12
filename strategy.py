@@ -43,20 +43,22 @@ def signals(panel):
             k = i
             pos = 0
             side = 0
+            entered = False
             while k < j:
-                if pos == 0:
-                    if (sec[k] >= SIG_SEC and last_close is not None and last_contract == cvar[k]
+                if pos == 0 and not entered:
+                    if (SIG_SEC <= sec[k] < PARAMS['exit_sec'] - 60 and last_close is not None and last_contract == cvar[k]
                             and len(gap_hist) >= PARAMS['lookback_sessions']):
                         gap = close[k] - last_close
                         mad = float(np.mean(gap_hist[-PARAMS['lookback_sessions']:]))
                         if mad > 0 and abs(gap) >= PARAMS['z_thr'] * mad:
                             side = -int(np.sign(gap))
                             pos = side
+                            entered = True
                             stop = close[k] - side * stop_ticks
                 else:
                     if side * (close[k] - stop) >= 0:   # crossed stop
                         pos = 0
-                    elif sec[k] >= PARAMS['exit_sec'] - 60:  # exit on 12:49 close
+                    elif PARAMS['exit_sec'] - 60 <= sec[k] < 61200:  # flat from 12:49 close
                         pos = 0
                 out[k] = pos
                 k += 1
