@@ -1,4 +1,4 @@
-"""v17n-5 exp8. FAMILY corn-soy-overnight-relative-value.
+"""v17n-5 exp8. FAMILY corn-soy-open-hour-relative-value (spread measured 08:30-09:29 CT; docstring corrected).
 Mechanism: corn and soy compete for acreage/feed demand; their correlated overnight returns can
 separate on thin liquidity and converge once US commercial flow begins. At 09:30 CT long overnight
 underperformer and short outperformer when normalized return spread exceeds 1 trailing standard
@@ -6,13 +6,13 @@ deviation; exit 12:50. Hypothesis: spread convergence covers stressed paired cos
 Falsifier: negative era PnL or fewer than 70% positive years.
 """
 import numpy as np
-FAMILY='corn-soy-overnight-relative-value'
+FAMILY='corn-soy-open-hour-relative-value'
 PARAMS={'signal_sec':34140,'exit_sec':46500,'lookback':20,'z_threshold':1.,'stop_usd':250.}
 def entry_risk(panel): return {s:np.full(len(d),290.) for s,d in panel.items()}
 def signals(panel):
  r={s:np.zeros(len(d),dtype=np.int64) for s,d in panel.items()}
  if not {'ZC','ZS'}<=set(panel):return r
- a,b=panel['ZC'],panel['ZS']; ia={str(x):i for i,x in enumerate(a.session)}; ib={str(x):i for i,x in enumerate(b.session)}
+ a,b=panel['ZC'],panel['ZS']; ia={str(x):np.flatnonzero(a.session.astype(str).to_numpy()==x) for x in a.session.unique()}; ib={str(x):np.flatnonzero(b.session.astype(str).to_numpy()==x) for x in b.session.unique()}
  hist=[]
  for day in sorted(set(ia)&set(ib)):
   xa,xb=ia[day],ib[day]; sa=a.ct_sec.to_numpy()[xa];sb=b.ct_sec.to_numpy()[xb];ca=a.close.to_numpy(float);cb=b.close.to_numpy(float)
